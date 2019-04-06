@@ -52,9 +52,36 @@ main :-
     gameloop.
 
 initialize :-
+    retractall(have(_)),
+    retractall(local(_)),
     assert(have([])),
     assert(local([1,1])).
 
+explain :-
+    writeln('Move with north, south, east or west').
+
+gameloop :-
+    whereami,
+    whatishere,
+    getcommand.
+
+whereami :-
+    local(X),
+    format('You are at: ~w\n', [X]).
+    % writef('You are at: %w\n', [X]).
+
+whatishere :-
+    local(X),
+    getat(X, P),
+    writeln("Here you can see: "),
+    things(P, T),
+    writeln(T).
+    % fail.
+
+whatishere.
+
+getcommand :-
+    write("What do you want to do?").
 
 namesq(witch, "famine witch's yard").
 namesq(hwitch, "Madaleine witch's house").
@@ -107,23 +134,28 @@ namesq(woods, "city woods").
 namesq(mountain, "Great Mountains of King Kalavareko").
 
 % indoors
-at([0, 0], hwitch).
-at([0, 5], hchurch).
-at([2, 5], mosquito1).
-at([2, 5], mosquito2).
-at([2, 5], mosquito3).
-at([2, 5], mosquito4).
-at([3, 5], knight1).
-at([3, 5], knight2).
-at([3, 5], knight3).
-at([4, 4], fisherfriend1).
-at([4, 4], fisherfriend2).
-at([4, 5], fisherold1).
-at([4, 5], fisherold2).
-at([4, 5], fisherold3).
-at([4, 6], fisher1).
-at([9, 0], hcave).
-at([9, 6], hcastle).
+% places have things on it
+things(witch, hwitch).
+things(church, hchurch).
+things(neighbor4, mosquito1).
+things(neighbor4, mosquito2).
+things(neighbor4, mosquito3).
+things(neighbor4, mosquito4).
+things(knights3, knight1).
+things(knights3, knight2).
+things(knights3, knight3).
+things(fishermans2, fisherfriend1).
+things(fishermans2, fisherfriend2).
+things(fishermans3, fisherold1).
+things(fishermans3, fisherold2).
+things(fishermans3, fisherold3).
+things(fishermans1, fisher1).
+things(cave, hcave).
+things(cave, hcastle).
+
+getat(X, P) :-
+    at(X, P),
+    !.
 
 % outdoors
 at([0, 0], witch).
@@ -218,6 +250,22 @@ at([X, Y], mountain) :-
 
 at([X, 3], lroad) :-
     X < 0.
+
+at([4, Y], margin) :-
+    Y < 0 ; Y > 6.
+
+at([5, Y], water) :-
+    Y < 0 ; Y > 6.
+
+at([6, Y], dwater) :-
+    Y < 0 ; Y > 6.
+
+at([7, Y], water) :-
+    Y < 0 ; Y > 6.
+
+at([8, Y], margin) :-
+    Y < 0 ; Y > 6.
+
 
 
 /* ---------------------------------------------------------------------- */
