@@ -34,7 +34,7 @@
  * @retval TRUE on success.
  * @retval FALSE on fail.
  */
-:- dynamic([verbosecounter/1, have/1, here/1, dead/0, done/0, thing/2, last_command/1]).
+:- dynamic([have/1, coord/1, local/1, here/1, dead/0, done/0, thing/2, last_command/1]).
 
 /* ---------------------------------------------------------------------- */
 /* Facts and Rules */
@@ -46,7 +46,7 @@
  * @retval FALSE If main can't be proven.
  */
 start :-
-    respond(['Initializing...']),
+    % respond(['Initializing...']),
     initialize,
     explain,
     gameloop,
@@ -55,15 +55,21 @@ start :-
 initialize :-
     % clear old memory
     retractall(have(_)),
+    retractall(coord(_)),
     retractall(local(_)),
+    retractall(here(_)),
     retractall(dead),
     retractall(done),
+    retractall(thing(_,_)),
     retractall(last_command(_)),
     % initializes a new game
     assert(have([])),
-    assert(local([1,1])),
-    assert(last_command(go([north]))),
-    put_things.
+    assert(coord([1,1])),
+    getat([1,1], Place),
+    assert(local(Place)),
+    assert(here([])),
+    put_things,
+    assert(last_command(go([north]))).
 
 explain :-
     respond(['Move with go north, go south, go east or go west']).
@@ -82,7 +88,7 @@ gameover :-
     dead ; done.
 
 check_dead :-
-    local(X),
+    coord(X),
     at(X, dwater),
     respond(['You died in some strange deep waters']),
     assert(dead),
@@ -91,15 +97,14 @@ check_dead :-
 check_dead.
 
 whereami :-
-    local(Pos),
-    respond(['Your position is ', Pos]),
-    getat(Pos, Place),
+    % coord(Pos),
+    % respond(['Your position is ', Pos]),
+    local(Place),
     namesq(Place, Name),
     respond(['You are at the ', Name]).
 
 whatishere :-
-    local(Pos),
-    getat(Pos, Place),
+    local(Place),
     respond(['Here you can see: ']),
     whatlist(Place).
 
@@ -136,155 +141,303 @@ listthings(Place) :-
 
 listthings(_).
 
+/* ---------------------------------------------------------------------- */
 exec_command :-
     respond(['What do you want to do?']),
     get_command(Comm),
     nl,
-    respond([Comm]),
+    % respond([Comm]),
     do(Comm).
 
+% moves around the map
 do(go(X)) :-
     go(X), !.
+% talks to people
 do(talk(X)) :-
     talk(X), !.
+% takes objects to inventory
 do(take(X)) :-
     take(X), !.
+% drops objects from inventory
 do(drop(X)) :-
     drop(X), !.
+% eats things
 do(eat(X)) :-
     eat(X), !.
+% fights against things
 do(fight(X)) :-
     fight(X), !.
+% take a closer look at something
 do(inspect(X)) :-
     inspect(X), !.
+% looks around the place
 do(explore(X)) :-
     explore(X), !.
+% enters houses or strange places
 do(enter(X)) :-
     enter(X), !.
+% run away for your life
 do(run(X)) :-
     run(X), !.
+% recovers some energy
 do(rest(X)) :-
     rest(X), !.
+% plays a musical instrument
 do(play(X)) :-
     play(X), !.
+% lists the inventory
 do(list(X)) :-
     list(X), !.
+% opens things (may need keys)
 do(opens(X)) :-
     opens(X), !.
+% closes things
 do(closes(X)) :-
     closes(X), !.
+% give up the game and exit
 do(quit(X)) :-
     quit(X), !.
+% prints a help message
 do(help(X)) :-
     help(X), !.
+% default: do not understand
 do(_) :-
     respond(['Sorry, I didn\'t understand that.']), !.
 
+/* ---------------------------------------------------------------------- */
 % the real actions go here
 go([H|_]) :-
-    respond(['You are trying to go ', H]),
+    % respond(['You are trying to go ', H]),
     trymove(H),
     !.
 
 go(_).
 
+trymove(out) :- 
+    local(Place),
+    not(mapsq(Place)), % can only go out if inside something
+    coord(Pos),
+    getat(Pos, Outside),
+    retractall(local(_)),
+    assert(local(Outside)),
+    !.
+
+trymove(out) :- 
+    respond(['You are not inside anything']),
+    !.
+
 trymove(north) :-
-    local([X0, Y0]),
+    local(Place),
+    mapsq(Place), % can only walk coordinates if outside
+    coord([X0, Y0]),
     Y1 is Y0 + 1,
     Npos = [X0, Y1],
     accessible([X0, Y0], Npos),
     respond(['You moved north']),
+    retractall(coord(_)),
+    assert(coord(Npos)),
+    getat(Npos, Place2),
     retractall(local(_)),
-    assert(local(Npos)),
+    assert(local(Place2)),
     !.
 
 trymove(south) :-
-    local([X0, Y0]),
+    local(Place),
+    mapsq(Place), % can only walk coordinates if outside
+    coord([X0, Y0]),
     Y1 is Y0 - 1,
     Npos = [X0, Y1],
     accessible([X0, Y0], Npos),
     respond(['You moved south']),
+    retractall(coord(_)),
+    assert(coord(Npos)),
+    getat(Npos, Place2),
     retractall(local(_)),
-    assert(local(Npos)),
+    assert(local(Place2)),
     !.
 
 trymove(east) :-
-    local([X0, Y0]),
+    local(Place),
+    mapsq(Place), % can only walk coordinates if outside
+    coord([X0, Y0]),
     X1 is X0 + 1,
     Npos = [X1, Y0],
     accessible([X0, Y0], Npos),
     respond(['You moved east']),
+    retractall(coord(_)),
+    assert(coord(Npos)),
+    getat(Npos, Place2),
     retractall(local(_)),
-    assert(local(Npos)),
+    assert(local(Place2)),
     !.
 
 trymove(west) :-
-    local([X0, Y0]),
+    local(Place),
+    mapsq(Place), % can only walk coordinates if outside
+    coord([X0, Y0]),
     X1 is X0 - 1,
     Npos = [X1, Y0],
     accessible([X0, Y0], Npos),
     respond(['You moved west']),
+    retractall(coord(_)),
+    assert(coord(Npos)),
+    getat(Npos, Place2),
     retractall(local(_)),
-    assert(local(Npos)),
+    assert(local(Place2)),
     !.
 
-trymove(_) :-
+trymove(H) :-
+    (H = north ; H = south ; H = east ; H = west),
+    local(Place),
+    not(mapsq(Place)),
+    namesq(Place, Name),
+    respond(['You can\'t move ', H, ' while inside ', Name]),
+    !.
+
+trymove(H) :-
+    (H = north ; H = south ; H = east ; H = west),
     respond(['The passage is blocked by a wall']),
-    !,
-    fail.
+    !.
 
+trymove(H) :-
+    mapsq(H),
+    respond(['Try using "go" followed by "north", "south", "east" or "west"']),
+    !.
 
+trymove(H) :-
+    respond(['I don\'t know how to get to ', H]),
+    !.
 
+/* ---------------------------------------------------------------------- */
 talk([H|_]) :-
     respond(['You tried to talk to ', H]),
     !.
+
+/* ---------------------------------------------------------------------- */
 take([H|_]) :-
     respond(['You tried to take a ', H]),
     !.
+
+/* ---------------------------------------------------------------------- */
 drop([H|_]) :-
     respond(['You tried to drop a ', H]),
     !.
+
+/* ---------------------------------------------------------------------- */
 eat([H|_]) :-
     respond(['You tried to eat a ', H]),
     !.
+
+/* ---------------------------------------------------------------------- */
 fight([H|_]) :-
     respond(['You tried to fight the ', H]),
     !.
+
+/* ---------------------------------------------------------------------- */
 inspect([H|_]) :-
     respond(['You tried to look better at ', H]),
     !.
+
+/* ---------------------------------------------------------------------- */
 explore(_) :-
     respond(['You tried to explore your surrounds']),
     !.
+
+/* ---------------------------------------------------------------------- */
+% enter houses or strange places
 enter([H|_]) :-
-    respond(['You tried to enter ', H]),
+    % respond(['You tried to enter ', H]),
+    local(Place),
+    house(Place, In), % is there a house here to enter?
+    housesyn(In, Lsyn),
+    member(H, Lsyn),   % is H member of the list of synonymous for this place?
+    retractall(local(_)),
+    assert(local(In)),
+    % namesq(In, Name),
+    % respond(['You are now inside the ', Name]),
     !.
+
+enter([H|_]) :-
+    respond(['There is no entrance to ', H]),
+    !.
+
+ 
+/* ---------------------------------------------------------------------- */
 run(_) :-
     respond(['You tried to run away']),
     !.
+
+/* ---------------------------------------------------------------------- */
 rest(_) :-
     respond(['You tried to rest for a while']),
     !.
+
+/* ---------------------------------------------------------------------- */
 play([H|_]) :-
     respond(['You tried to play with ', H]),
     !.
+
+/* ---------------------------------------------------------------------- */
 list(_) :-
     respond(['You tried to list your inventory']),
     !.
+
+/* ---------------------------------------------------------------------- */
 opens([H|_]) :-
     respond(['You tried to open a ', H]),
     !.
+
+/* ---------------------------------------------------------------------- */
 closes([H|_]) :-
     respond(['You tried to close a ', H]),
     !.
+
+/* ---------------------------------------------------------------------- */
 quit(_) :-
     respond(['Good bye! Thanks for playing...']),
     assert(done),
     !.
+
+/* ---------------------------------------------------------------------- */
 help(_) :-
     respond(['Your objective is...']),
     !.
 
+% squares on the map, outdoors
+mapsq(witch).
+mapsq(smoke).
+mapsq(dforest).
+mapsq(forest).
+mapsq(water).
+mapsq(dwater).
+mapsq(margin).
+mapsq(church).
+mapsq(cemitery).
+mapsq(plaza).
+mapsq(gate).
+mapsq(lroad).
+mapsq(road).
+mapsq(rroad).
+mapsq(bridge).
+mapsq(mroad).
+mapsq(froad).
+mapsq(neighbor4).
+mapsq(knights3).
+mapsq(palace).
+mapsq(fountain).
+mapsq(fishermans2).
+mapsq(fishermans3).
+mapsq(fishermans1).
+mapsq(intersection).
+mapsq(castle).
+mapsq(cave).
+mapsq(nstreet).
+mapsq(estreet).
+mapsq(woods).
+mapsq(dwoods).
+mapsq(mountain).
+mapsq(dmountain).
+mapsq(loach).
 
 % names of the important squares, plazas, objects
 namesq(witch, "famine witch's yard").
@@ -294,7 +447,7 @@ namesq(forest, "enchanted forest").
 namesq(water, "shallow waters of the Ekofiume river").
 namesq(dwater, "deep waters of the Ekofiume river").
 namesq(margin, "margin of Ekofiume river").
-namesq(church, "St. Eklasius Church").
+namesq(church, "St. Eklasius Church entrance").
 namesq(cemitery, "Dom Doom Cemitery").
 namesq(plaza, "Councilor Lustre Plaza").
 namesq(gate, "Entrance gates of Ekofype City").
@@ -306,14 +459,14 @@ namesq(mroad, "King's Mountain Road").
 namesq(froad, "Queen's Forest Road").
 namesq(neighbor4, "Four Mosquitoes neighborhood").
 namesq(knights3, "Three Knights neighborhood").
-namesq(palace, "Ekofype Great Palace").
+namesq(palace, "Ekofype Great Palace main door").
 namesq(fountain, "Robinlot's Wife Saudades Fountain").
 namesq(fishermans2, "Fisherman's Friends neighborhood").
 namesq(fishermans3, "Fisherman's Old Village").
 namesq(fishermans1, "Ermit Fisherman's yard").
 namesq(intersection, "Three-way Eko-Mountain-Forest intersection (3EMFI)").
 namesq(castle, "Red Castle of Firearms").
-namesq(cave, "Ermit Caesirus cave").
+namesq(cave, "Ermit Caesirus cave entrance").
 namesq(nstreet, "north street").
 namesq(estreet, "east street").
 namesq(woods, "city woods").
@@ -323,25 +476,26 @@ namesq(dmountain, "Deep Cursed  Mountains").
 namesq(loach, "Caesirus hidden place at the river margin").
 
 % names of houses
-namesq(hwitch, "Madaleine witch's house").
-namesq(hchurch, "main hall of St. Eklasius Church").
+namesq(hwitch, "Madaleine witch's living room").
+namesq(hchurch, "chapel of St. Eklasius Church").
 namesq(tomb, "tomb of Dom Doom").
-namesq(mosquito1, "first mosquito's house").
-namesq(mosquito2, "second mosquito's house").
-namesq(mosquito3, "third mosquito's house").
-namesq(mosquito4, "fourth mosquito's house").
-namesq(knight1, "Greminlot's house").
-namesq(knight2, "Robinlot's house").
-namesq(knight3, "Lancelot's house").
-namesq(hpalace, "main hall of the Ekofype Great Palace").
-namesq(fisherfriend1, "first fisherman's house").
-namesq(fisherfriend2, "second fisherman's house").
-namesq(fisherold1, "Old Claudius' house").
-namesq(fisherold2, "Old Otavius' house").
-namesq(fisherold3, "Old Julius's house").
-namesq(fisher1, "Ermit fisherman Caexius' house").
-namesq(hcastle, "hall of the Red Castle of Firearms").
-namesq(hcave, "main hollow of the Ermit Caesirus cave").
+namesq(mosquito1, "first mosquito's bedroom").
+namesq(mosquito2, "second mosquito's bathroom").
+namesq(mosquito3, "third mosquito's saloon").
+namesq(mosquito4, "fourth mosquito's guestroom").
+namesq(knight1, "Greminlot's cellar").
+namesq(knight2, "Robinlot's garage").
+namesq(knight3, "Lancelot's library").
+namesq(hpalace, "throne room of the Ekofype Great Palace").
+namesq(fisherfriend1, "first fisherman's green room").
+namesq(fisherfriend2, "second fisherman's gym room").
+namesq(fisherold1, "Old Claudius' basement").
+namesq(fisherold2, "Old Otavius' chamber").
+namesq(fisherold3, "Old Julius's dungeon").
+namesq(fisher1, "Ermit fisherman Caexius' darkroom").
+namesq(hcastle, "lobby of the Red Castle of Firearms").
+namesq(hcave, "conservatory of the Ermit Caesirus cave").
+namesq(hloach, "hidden hole in the sand").
 
 % names of people
 namesq(madaleine, "Madaleine the witch").
@@ -388,14 +542,38 @@ house(neighbor4, mosquito4).
 house(knights3, knight1).
 house(knights3, knight2).
 house(knights3, knight3).
+house(palace, hpalace).
 house(fishermans2, fisherfriend1).
 house(fishermans2, fisherfriend2).
 house(fishermans3, fisherold1).
 house(fishermans3, fisherold2).
 house(fishermans3, fisherold3).
 house(fishermans1, fisher1).
-house(cave, hcave).
 house(castle, hcastle).
+house(cave, hcave).
+house(loach, hloach).
+
+% house synonymous for typing
+housesyn(hwitch, [madaleine, witchs, witch, living]).
+housesyn(hchurch, [eklasius, church, chapel]).
+housesyn(tomb, [tomb, dom, doom, domdoom]).
+housesyn(mosquito1, [first, mosquitos, bedroom]).
+housesyn(mosquito2, [second, bathroom]).
+housesyn(mosquito3, [third, saloon]).
+housesyn(mosquito4, [fourth, guestroom]).
+housesyn(knight1, [greminlots, greminlot, gremin, cellar]).
+housesyn(knight2, [robinlots, robinlot, robin, garage]).
+housesyn(knight3, [lancelots, lancelot, lance, library]).
+housesyn(hpalace, [great, palace, ekofype, throne]).
+housesyn(fisherfriend1, [first, fisherman, fishermans, one, green]).
+housesyn(fisherfriend2, [second, two, gym]).
+housesyn(fisherold1, [claudius, old, basement]).
+housesyn(fisherold2, [otavius, chamber]).
+housesyn(fisherold3, [julius, dungeon]).
+housesyn(fisher1, [ermit, caexius, caesirus, great, darkroom]).
+housesyn(hcastle, [red, castle, firearms, lobby]).
+housesyn(hcave, [cave, hollow, ermit, caesirus, great, conservatory]).
+housesyn(hloach, [hidden, hole, sand]).
 
 % people on houses or squares
 people(hwitch, madaleine).
@@ -507,7 +685,7 @@ at([9, 2], mountain).
 at([9, 3], rroad).
 at([9, 4], forest).
 at([9, 5], forest).
-at([9, 6], forest).
+at([9, 6], dforest).
 at([10, 0], cave).
 at([10, 1], mroad).
 at([10, 2], mroad).
@@ -516,7 +694,7 @@ at([10, 4], froad).
 at([10, 5], froad).
 at([10, 6], castle).
 
-at([X, Y], dforest) :-
+at([X, Y], forest) :-
     (X < 4, Y < 0);
     (X < 0, Y < 3);
     (X < 0, Y > 3);
@@ -639,12 +817,8 @@ read_command(C) :-
     remdet(L, Ld),
     Ld = [Co | Tail],
     Cr = [Co, Tail],
-    % write('vai: '),
-    % write(Cr),
     assembly_command(Cr, C),
     !.
-    % Cr = ['',[]],
-    % C =.. [last,[]], !.
 
 assembly_command(['',[]], C) :-
     C =.. [last,[]], !.
@@ -710,20 +884,8 @@ repl2(W1, W2, New, [W1, H2 | T], [W1, H2 | T2]) :-
     dif(H2, W2),
     replace2(W1, W2, New, T, T2).
 
-% replace element in list 
-replace(_, _, [], []).
-
-replace(O, R, [O|T], [R|T2]) :-
-    replace(O, R, T, T2).
-
-replace(O, R, [H|T], [H|T2]) :-
-    dif(H, O),
-    replace(O, R, T, T2).
-
-
 % read user input and return a list of atoms
 readlist(L) :-
-    % read(I), % read terms, end with dot.
     read_string(user_input, "\n", "\r\t ", _, I),
     string_lower(I, Il),
     remapo(Il, SI),
@@ -753,37 +915,6 @@ respond([H|T]) :-
     respond(T).
 
 /* ---------------------------------------------------------------------- */
-/**prowler.pl
- * @ingroup GroupUnique
- * @brief verbose is det
- * @details Increases verbose level by one.
- * @return TRUE always.
- */
-verbose :-
-    verbosecounter(X),
-    retractall(verbosecounter(_)),
-    Y is X + 1,
-    assert(verbosecounter(Y)).
-
-/* ---------------------------------------------------------------------- */
-/**
- * @ingroup GroupUnique
- * @brief verbose0 is det
- * @details Sets verbose level to zero.
- * @return TRUE always.
- */
-verbose0 :-
-    retractall(verbosecounter(_)),
-    assert(verbosecounter(0)).
-
-/* ---------------------------------------------------------------------- */
-/**
- * @ingroup GroupUnique
- * @brief version is a fact
- * @details It will return the version number of program prowler.
- * @param[out] A It's a string with the version number.
- * @return TRUE always.
- */
 version('20190405.211933').
 
 /* ----------------------------------------------------------------------- */
