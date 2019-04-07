@@ -34,7 +34,7 @@
  * @retval TRUE on success.
  * @retval FALSE on fail.
  */
-:- dynamic([verbosecounter/1, have/1, here/1, dead/0, done/0, thing/2]).
+:- dynamic([verbosecounter/1, have/1, here/1, dead/0, done/0, thing/2, last_command/1]).
 
 /* ---------------------------------------------------------------------- */
 /* Facts and Rules */
@@ -45,7 +45,7 @@
  * @retval TRUE If it can prove main.
  * @retval FALSE If main can't be proven.
  */
-main :-
+start :-
     respond(['Initializing...']),
     initialize,
     explain,
@@ -53,12 +53,16 @@ main :-
     !.
 
 initialize :-
+    % clear old memory
     retractall(have(_)),
     retractall(local(_)),
     retractall(dead),
     retractall(done),
+    retractall(last_command(_)),
+    % initializes a new game
     assert(have([])),
     assert(local([1,1])),
+    assert(last_command(go([north]))),
     put_things.
 
 explain :-
@@ -80,8 +84,11 @@ gameover :-
 check_dead :-
     local(X),
     at(X, dwater),
-    respond(['You died in the deep waters of the Ekofiume river']),
-    assert(dead).
+    respond(['You died in some strange deep waters']),
+    assert(dead),
+    !.
+
+check_dead.
 
 whereami :-
     local(Pos),
@@ -225,8 +232,6 @@ trymove(_) :-
     respond(['The passage is blocked by a wall']),
     !,
     fail.
-
-
 
 
 
@@ -611,7 +616,9 @@ accessible(P0, P1) :-
 % get user input and convert to "command([arguments])"
 get_command(C) :-
     read_command(RC),
-    synonymous(RC, C).
+    synonymous(RC, C),
+    retractall(last_command(_)),
+    assert(last_command(C)).
 
 synonymous(get([out|T]), go([out|T])) :- !.
 synonymous(get([H|T]), take([H|T])) :- not(H == out), !.
@@ -623,6 +630,8 @@ synonymous(search([H|T]), inspect([H|T])) :- not(H == around), !.
 synonymous(enter([inside|T]), enter(T)).
 synonymous(inventory(L), list(L)).
 synonymous(give([up|_]), quit([])).
+synonymous(last([]), C) :-
+    last_command(C), !.
 synonymous(C, C).
 
 read_command(C) :-
@@ -630,6 +639,16 @@ read_command(C) :-
     remdet(L, Ld),
     Ld = [Co | Tail],
     Cr = [Co, Tail],
+    % write('vai: '),
+    % write(Cr),
+    assembly_command(Cr, C),
+    !.
+    % Cr = ['',[]],
+    % C =.. [last,[]], !.
+
+assembly_command(['',[]], C) :-
+    C =.. [last,[]], !.
+assembly_command(Cr, C) :-
     C =.. Cr, !.
 
 % remove determinants the, a, to, at, in, inside, under, of
