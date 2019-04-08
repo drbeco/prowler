@@ -34,7 +34,7 @@
  * @retval TRUE on success.
  * @retval FALSE on fail.
  */
-:- dynamic([have/1, coord/1, local/1, here/1, dead/0, done/0, thing/2, last_command/1]).
+:- dynamic([have/1, coord/1, local/2, here/1, dead/0, done/0, pl_thing/2, last_command/1]).
 
 /* ---------------------------------------------------------------------- */
 /* Facts and Rules */
@@ -56,19 +56,20 @@ initialize :-
     % clear old memory
     retractall(have(_)),
     retractall(coord(_)),
-    retractall(local(_)),
+    retractall(local(_, _)),
     retractall(here(_)),
     retractall(dead),
     retractall(done),
-    retractall(thing(_,_)),
+    retractall(pl_thing(_,_)),
     retractall(last_command(_)),
     % initializes a new game
     assert(have([])),
     assert(coord([1,1])),
     getat([1,1], Place),
-    assert(local(Place)),
-    assert(here([])),
+    assert(local(player, Place)),
+    % assert(here([])),
     put_things,
+    put_people,
     assert(last_command(go([north]))).
 
 explain :-
@@ -99,12 +100,12 @@ check_dead.
 whereami :-
     % coord(Pos),
     % respond(['Your position is ', Pos]),
-    local(Place),
+    local(player, Place),
     namesq(Place, Name),
     respond(['You are at the ', Name]).
 
 whatishere :-
-    local(Place),
+    local(player, Place),
     respond(['Here you can see: ']),
     whatlist(Place).
 
@@ -115,7 +116,7 @@ whatlist(Place) :-
     nl.
 
 listhouses(Place) :-
-    house(Place, House),
+    sq_house(Place, House),
     namesq(House, Name),
     write(Name),
     write(', '),
@@ -124,7 +125,7 @@ listhouses(Place) :-
 listhouses(_).
 
 listpeople(Place) :-
-    people(Place, Person),
+    local(Person, Place),
     namesq(Person, Name),
     write(Name),
     write(', '),
@@ -133,7 +134,7 @@ listpeople(Place) :-
 listpeople(_).
 
 listthings(Place) :-
-    thing(Place, Thing),
+    pl_thing(Place, Thing),
     namesq(Thing, Name),
     write(Name),
     write(', '),
@@ -214,12 +215,12 @@ go([H|_]) :-
 go(_).
 
 trymove(out) :- 
-    local(Place),
+    local(player, Place),
     not(mapsq(Place)), % can only go out if inside something
     coord(Pos),
     getat(Pos, Outside),
-    retractall(local(_)),
-    assert(local(Outside)),
+    retractall(local(player, _)),
+    assert(local(player, Outside)),
     !.
 
 trymove(out) :- 
@@ -227,7 +228,7 @@ trymove(out) :-
     !.
 
 trymove(north) :-
-    local(Place),
+    local(player, Place),
     mapsq(Place), % can only walk coordinates if outside
     coord([X0, Y0]),
     Y1 is Y0 + 1,
@@ -237,12 +238,12 @@ trymove(north) :-
     retractall(coord(_)),
     assert(coord(Npos)),
     getat(Npos, Place2),
-    retractall(local(_)),
-    assert(local(Place2)),
+    retractall(local(player, _)),
+    assert(local(player, Place2)),
     !.
 
 trymove(south) :-
-    local(Place),
+    local(player, Place),
     mapsq(Place), % can only walk coordinates if outside
     coord([X0, Y0]),
     Y1 is Y0 - 1,
@@ -252,12 +253,12 @@ trymove(south) :-
     retractall(coord(_)),
     assert(coord(Npos)),
     getat(Npos, Place2),
-    retractall(local(_)),
-    assert(local(Place2)),
+    retractall(local(player, _)),
+    assert(local(player, Place2)),
     !.
 
 trymove(east) :-
-    local(Place),
+    local(player, Place),
     mapsq(Place), % can only walk coordinates if outside
     coord([X0, Y0]),
     X1 is X0 + 1,
@@ -267,12 +268,12 @@ trymove(east) :-
     retractall(coord(_)),
     assert(coord(Npos)),
     getat(Npos, Place2),
-    retractall(local(_)),
-    assert(local(Place2)),
+    retractall(local(player, _)),
+    assert(local(player, Place2)),
     !.
 
 trymove(west) :-
-    local(Place),
+    local(player, Place),
     mapsq(Place), % can only walk coordinates if outside
     coord([X0, Y0]),
     X1 is X0 - 1,
@@ -282,13 +283,13 @@ trymove(west) :-
     retractall(coord(_)),
     assert(coord(Npos)),
     getat(Npos, Place2),
-    retractall(local(_)),
-    assert(local(Place2)),
+    retractall(local(player, _)),
+    assert(local(player, Place2)),
     !.
 
 trymove(H) :-
     (H = north ; H = south ; H = east ; H = west),
-    local(Place),
+    local(player, Place),
     not(mapsq(Place)),
     namesq(Place, Name),
     respond(['You can\'t move ', H, ' while inside ', Name]),
@@ -347,12 +348,12 @@ explore(_) :-
 % enter houses or strange places
 enter([H|_]) :-
     % respond(['You tried to enter ', H]),
-    local(Place),
-    house(Place, In), % is there a house here to enter?
-    housesyn(In, Lsyn),
+    local(player, Place),
+    sq_house(Place, In), % is there a house here to enter?
+    house_syn(In, Lsyn),
     member(H, Lsyn),   % is H member of the list of synonymous for this place?
-    retractall(local(_)),
-    assert(local(In)),
+    retractall(local(player, _)),
+    assert(local(player, In)),
     % namesq(In, Name),
     % respond(['You are now inside the ', Name]),
     !.
@@ -374,7 +375,7 @@ rest(_) :-
 
 /* ---------------------------------------------------------------------- */
 play([H|_]) :-
-    respond(['You tried to play with ', H]),
+    respond(['You tried to play some music with ', H]),
     !.
 
 /* ---------------------------------------------------------------------- */
@@ -403,105 +404,310 @@ help(_) :-
     respond(['Your objective is...']),
     !.
 
-% squares on the map, outdoors
-mapsq(witch).
-mapsq(smoke).
-mapsq(dforest).
-mapsq(forest).
-mapsq(water).
-mapsq(dwater).
-mapsq(margin).
-mapsq(church).
-mapsq(cemitery).
-mapsq(plaza).
-mapsq(gate).
-mapsq(lroad).
-mapsq(road).
-mapsq(rroad).
-mapsq(bridge).
-mapsq(mroad).
-mapsq(froad).
-mapsq(neighbor4).
-mapsq(knights3).
-mapsq(palace).
-mapsq(fountain).
-mapsq(fishermans2).
-mapsq(fishermans3).
-mapsq(fishermans1).
-mapsq(intersection).
-mapsq(castle).
-mapsq(cave).
-mapsq(nstreet).
-mapsq(estreet).
-mapsq(woods).
-mapsq(dwoods).
-mapsq(mountain).
-mapsq(dmountain).
-mapsq(loach).
+/* ---------------------------------------------------------------------- */
+% facts listing all things
 
+% generic square names (can't hold objects)
+mapsq(forest). % all forest squares
+mapsq(water). % all shallow waters near both the margins of the river
+mapsq(dwater). % all middle of the river, plus a trap at 9,1
+mapsq(margin). % all margin squares of the river
+mapsq(lroad). % goes left/west
+mapsq(road). % middle road, before the bridge
+mapsq(rroad). % right road, after the bridge
+mapsq(mroad). % mountain road, goes south to the cave
+mapsq(froad). % forest road, goes north to the castle
+mapsq(mountain). % all mountains around
+
+% unique squares on the map
+mapsq(witch). % witch's yard
+mapsq(smoke). % smoked forest
+mapsq(church). % city church
+mapsq(cemitery). % city cemitery
+mapsq(plaza). % city plaza square
+mapsq(gate). % city gates
+mapsq(bridge). % bridge over Ekofiume river
+mapsq(intersection). % road intersection between rroad, mroad and froad
+mapsq(neighbor4). % neighborhood of the Mosquitos
+mapsq(knights3). % neighborhood of the Knights
+mapsq(palace). % city palace
+mapsq(fountain). % city fountain
+mapsq(fishermans2). % neighborhood the the friendly fishermans
+mapsq(fishermans3). % neighborhood of the old creepy fishermans
+mapsq(fishermans1). % Caexis the Brother house square
+mapsq(castle). % the Red Castle
+mapsq(cave). % Caesirus' cave
+mapsq(sstreet). % Saudades street, goes north
+mapsq(wstreet). % Whale street, goes east
+mapsq(woods). % light woods near the city plaza and church
+mapsq(dwoods). % city deep woods near the river and the north wall
+mapsq(dforest). % at 9,6 a deep forest
+mapsq(dmountain). % a strange mountain place at 9,0
+mapsq(loach). % Caesirus' hidden place in the river margin
+mapsq(tavern). % Great Whale Tavern
+
+% people on the world 
+people(madaleine). % the witch
+people(eklasius). % the saint
+people(domdoom). % the cursed
+people(lustre). % Councilor
+people(guard). % gate's guard
+people(collector). % bridge's tax collector
+people(liljohn). % 1st mosquito
+people(lilly). % 2nd mosquito
+people(lilbil). % 3rd mosquito
+people(lilove). % 4th mosquito
+people(greminlot). % 1st knight
+people(robinlot). % 2nd knight
+people(lancelot). % 3rd knight
+people(klavareko). % ghost of the king
+people(ekofype). % ghost of the city founder
+people(saudadesmirage). % mirage of the princess
+people(titus). % friendly fisherman
+people(pitus). % friendly fisherman
+people(claudius). % old grumpy fisherman
+people(otavius). % old grumpy fisherman
+people(julius). % old grumpy fisherman
+people(caexis). % Caesirus' brother
+people(tukernook). % red dragon
+people(saudades). % the princess
+people(caesirus). % ermit fisherman
+people(wghost). % deep woods ghost
+people(mghost). % deep mountains ghost
+people(whale). % Whomobyl the White Whale
+people(bartender). % Thomorn Armorsmith the Barbarian
+people(waitress). % Lady Quierris Seaskipper
+people(drunk). % Tumblebelly the Bard
+
+% houses and places one can enter
+house(hwitch).
+house(hchurch).
+house(htomb).
+house(hmosquito1).
+house(hmosquito2).
+house(hmosquito3).
+house(hmosquito4).
+house(hknight1).
+house(hknight2).
+house(hknight3).
+house(hpalace).
+house(hfisherfriend1).
+house(hfisherfriend2).
+house(hfisherold1).
+house(hfisherold2).
+house(hfisherold3).
+house(hfisher1).
+house(hcastle).
+house(hcave).
+house(hloach).
+house(htavern).
+house(hwell). % water well in the fountain
+house(hpool). % water pool in the deep mountains 
+
+% vocabulary(saia).
+% vocabulary(va).
+% vocabulary(fale).
+% vocabulary(pegue).
+% vocabulary(solte).
+% vocabulary(coma).
+% vocabulary(lute).
+% vocabulary(inspecione).
+% vocabulary(explore).
+% vocabulary(entre).
+% vocabulary(fuja).
+% vocabulary(descanse).
+% vocabulary(toque).
+% vocabulary(liste).
+% vocabulary(abra).
+% vocabulary(feche).
+% vocabulary(desista).
+% vocabulary(ajuda).
+
+vocabulary(go). % synonym get(out)
+vocabulary(talk).
+vocabulary(take). % synonym get(something)
+vocabulary(drop). % synonym release(something)
+vocabulary(eat).
+vocabulary(fight).
+vocabulary(inspect). % synonyms look(something), search(something)
+vocabulary(explore). % synonyms look(around), search(around)
+vocabulary(enter).
+vocabulary(run).
+vocabulary(rest).
+vocabulary(play).
+vocabulary(list). % synonym inventory()
+vocabulary(opens).
+vocabulary(closes).
+vocabulary(quit). % synonym give(up)
+vocabulary(help).
+
+% indoors
+% squares that have houses or things you can enter
+sq_house(witch, hwitch).
+sq_house(church, hchurch).
+sq_house(cemitery, htomb).
+sq_house(neighbor4, hmosquito1).
+sq_house(neighbor4, hmosquito2).
+sq_house(neighbor4, hmosquito3).
+sq_house(neighbor4, hmosquito4).
+sq_house(knights3, hknight1).
+sq_house(knights3, hknight2).
+sq_house(knights3, hknight3).
+sq_house(palace, hpalace).
+sq_house(fishermans2, hfisherfriend1).
+sq_house(fishermans2, hfisherfriend2).
+sq_house(fishermans3, hfisherold1).
+sq_house(fishermans3, hfisherold2).
+sq_house(fishermans3, hfisherold3).
+sq_house(fishermans1, hfisher1).
+sq_house(castle, hcastle).
+sq_house(cave, hcave).
+sq_house(loach, hloach).
+sq_house(tavern, htavern).
+sq_house(fountain, hwell). % water well in the fountain
+sq_house(dmountain, hpool). % water pool in the deep mountains 
+
+% house synonymous for typing
+house_syn(hwitch, [madaleine, witchs, witch, living, room]).
+house_syn(hchurch, [eklasius, church, chapel]).
+house_syn(htomb, [tomb, dom, doom, domdoom]).
+house_syn(hmosquito1, [liljohn, first, mosquitos, bedroom, mosquito]).
+house_syn(hmosquito2, [lilly, second, bathroom, ladybug]).
+house_syn(hmosquito3, [lilbil, third, inglenook]).
+house_syn(hmosquito4, [lillove, fourth, guestroom]).
+house_syn(hknight1, [greminlots, greminlot, gremin, cellar]).
+house_syn(hknight2, [robinlots, robinlot, robin, garage, saudades]).
+house_syn(hknight3, [lancelots, lancelot, lance, library]).
+house_syn(hpalace, [great, palace, ekofype, throne]).
+house_syn(hfisherfriend1, [first, fisherman, fishermans, one, green, titus]).
+house_syn(hfisherfriend2, [second, two, gym, pitus]).
+house_syn(hfisherold1, [claudius, old, basement]).
+house_syn(hfisherold2, [otavius, chamber]).
+house_syn(hfisherold3, [julius, dungeon]).
+house_syn(hfisher1, [ermit, caexis, caesirus, great, darkroom, fisherman, fishermans]).
+house_syn(hcastle, [red, castle, firearms, lobby]).
+house_syn(hcave, [cave, hollow, ermit, caesirus, great, conservatory, fishermans, fisherman]).
+house_syn(hloach, [caesirus, hidden, hole, sand, wormhole, secret, passage]).
+house_syn(htavern, [great, whale, tavern, salon]).
+house_syn(hwell, [limpid, water, well]).
+house_syn(hpool, [crystalline, water, pool]).
+
+% people on starting places
+put_people :-
+    % retractall(local(_, _)),
+    assert(local(madaleine, hwitch)),
+    assert(local(eklasius, hchurch)),
+    assert(local(domdoom, tomb)),
+    assert(local(lustre, plaza)),
+    assert(local(guard, gate)),
+    assert(local(collector, bridge)),
+    assert(local(liljohn, htavern)),
+    assert(local(lilly, mosquito2)),
+    assert(local(lilbil, mosquito3)),
+    assert(local(lilove, mosquito4)),
+    assert(local(greminlot, knight1)),
+    assert(local(robinlot, knight2)),
+    assert(local(lancelot, knight3)),
+    assert(local(klavareko, hpalace)),
+    assert(local(ekofype, hpalace)),
+    assert(local(saudadesmirage, fountain)),
+    assert(local(titus, fisherfriend1)),
+    assert(local(pitus, fisherfriend2)),
+    assert(local(claudius, htavern)),
+    assert(local(otavius, fisherold2)),
+    assert(local(julius, fisherold3)),
+    assert(local(caexis, htavern)),
+    assert(local(tukernook, hcastle)),
+    assert(local(saudades, hcastle)),
+    assert(local(caesirus, hcave)),
+    assert(local(wghost, dwoods)),
+    assert(local(mghost, dmountain)),
+    assert(local(whale, hpool)),
+    assert(local(bartender, htavern)),
+    assert(local(waitress, htavern)),
+    assert(local(drunk, htavern)).
+
+% movable things in place
+put_things :-
+    % retractall(pl_thing(_, _)),
+    assert(pl_thing(smoke, sword)), % place, thing
+    assert(pl_thing(fishermans1, boat)),
+    assert(pl_thing(mosquito1, coin)),
+    assert(pl_thing(fisherold1, coin)),
+    assert(pl_thing(hloach, coin)),
+    assert(pl_thing(tomb, coin)),
+    assert(pl_thing(woods, coin)),
+    assert(pl_thing(hcastle, coin)).
+
+/* ---------------------------------------------------------------------- */
+% atoms and the respective string descriptions
 % names of the important squares, plazas, objects
-namesq(witch, "famine witch's yard").
-namesq(smoke, "smoked forest").
-namesq(dforest, "deep forest").
 namesq(forest, "enchanted forest").
 namesq(water, "shallow waters of the Ekofiume river").
 namesq(dwater, "deep waters of the Ekofiume river").
 namesq(margin, "margin of Ekofiume river").
+namesq(lroad, "EK101 regional road").
+namesq(road, "EK042 city road").
+namesq(rroad, "EK666 cursed road").
+namesq(mroad, "King's Mountain Road").
+namesq(froad, "Queen's Forest Road").
+namesq(mountain, "Great Mountains of King Klavareko").
+namesq(witch, "famine witch's yard").
+namesq(smoke, "smoked forest").
 namesq(church, "St. Eklasius Church entrance").
 namesq(cemitery, "Dom Doom Cemitery").
 namesq(plaza, "Councilor Lustre Plaza").
 namesq(gate, "Entrance gates of Ekofype City").
-namesq(lroad, "EK101 regional road").
-namesq(road, "EK303 city road").
-namesq(rroad, "EK666 cursed road").
 namesq(bridge, "Ekofy Fireater Bridge").
-namesq(mroad, "King's Mountain Road").
-namesq(froad, "Queen's Forest Road").
+namesq(intersection, "EMF03 Three-way Intersection Eko-Mountain-Forest").
 namesq(neighbor4, "Four Mosquitoes neighborhood").
 namesq(knights3, "Three Knights neighborhood").
 namesq(palace, "Ekofype Great Palace main door").
-namesq(fountain, "Robinlot's Wife Saudades Fountain").
+namesq(fountain, "Saudades Fountain").
 namesq(fishermans2, "Fisherman's Friends neighborhood").
 namesq(fishermans3, "Fisherman's Old Village").
 namesq(fishermans1, "Ermit Fisherman's yard").
-namesq(intersection, "Three-way Eko-Mountain-Forest intersection (3EMFI)").
 namesq(castle, "Red Castle of Firearms").
 namesq(cave, "Ermit Caesirus cave entrance").
-namesq(nstreet, "north street").
-namesq(estreet, "east street").
+namesq(sstreet, "Saudades Fountain street").
+namesq(wstreet, "Whale street").
 namesq(woods, "city woods").
 namesq(dwoods, "creepy deep woods").
-namesq(mountain, "Great Mountains of King Kalavareko").
+namesq(dforest, "deep forest").
 namesq(dmountain, "Deep Cursed  Mountains").
 namesq(loach, "Caesirus hidden place at the river margin").
+namesq(tavern, "Great Whale Tavern").
 
 % names of houses
 namesq(hwitch, "Madaleine witch's living room").
 namesq(hchurch, "chapel of St. Eklasius Church").
-namesq(tomb, "tomb of Dom Doom").
-namesq(mosquito1, "first mosquito's bedroom").
-namesq(mosquito2, "second mosquito's bathroom").
-namesq(mosquito3, "third mosquito's saloon").
-namesq(mosquito4, "fourth mosquito's guestroom").
-namesq(knight1, "Greminlot's cellar").
-namesq(knight2, "Robinlot's garage").
-namesq(knight3, "Lancelot's library").
+namesq(htomb, "tomb of Dom Doom").
+namesq(hmosquito1, "Liljohn bedroom").
+namesq(hmosquito2, "Lilly's bathroom").
+namesq(hmosquito3, "Lilbil's inglenook").
+namesq(hmosquito4, "Lillove's guestroom").
+namesq(hknight1, "Greminlot's cellar").
+namesq(hknight2, "Robinlot's garage").
+namesq(hknight3, "Lancelot's library").
 namesq(hpalace, "throne room of the Ekofype Great Palace").
-namesq(fisherfriend1, "first fisherman's green room").
-namesq(fisherfriend2, "second fisherman's gym room").
-namesq(fisherold1, "Old Claudius' basement").
-namesq(fisherold2, "Old Otavius' chamber").
-namesq(fisherold3, "Old Julius's dungeon").
-namesq(fisher1, "Ermit fisherman Caexius' darkroom").
+namesq(hfisherfriend1, "Titu's green room").
+namesq(hfisherfriend2, "Pitu's gym room").
+namesq(hfisherold1, "Old Claudius' basement").
+namesq(hfisherold2, "Old Otavius' chamber").
+namesq(hfisherold3, "Old Julius's dungeon").
+namesq(hfisher1, "Ermit fisherman Caesirus' darkroom").
 namesq(hcastle, "lobby of the Red Castle of Firearms").
 namesq(hcave, "conservatory of the Ermit Caesirus cave").
-namesq(hloach, "hidden hole in the sand").
+namesq(hloach, "Caesirus' hidden hole in the sand").
+namesq(htavern, "salon of the Great Whale Tavern").
+namesq(hwell, "limpid water well"). % water well in the fountain
+namesq(hpool, "crystalline water pool"). % water pool in the deep mountains 
 
 % names of people
-namesq(madaleine, "Madaleine the witch").
-namesq(eklasius, "Eklasius the saint").
-namesq(domdoom, "Dom Doom the cursed").
-namesq(lustre, "Colonel Lustre").
+namesq(madaleine, "Madaleine the Witch").
+namesq(eklasius, "Eklasius the Saint").
+namesq(domdoom, "Dom Doom the Cursed").
+namesq(lustre, "Councilor Leonel Lustre").
 namesq(guard, "Justus the Guard of the Gate").
 namesq(collector, "Jurus the Coin Collector").
 namesq(liljohn, "Liljohn the First Mosquito").
@@ -511,104 +717,32 @@ namesq(lilove, "Lillove the Fourth Ladybug").
 namesq(greminlot, "Sir Greminlot the First Knight").
 namesq(robinlot, "Sir Robinlot the Second Knight").
 namesq(lancelot, "Sir Lancelot the Third Knight").
-namesq(kalavareko, "ghost of the dead king Kalavareko").
-namesq(ekofype, "ghost of the city founder Ekofype"). 
-namesq(saudadesmirage, "mirage of Saudades the Robinlot's wife").
-namesq(titus, "Titus the friendly fisherman").
-namesq(pitus, "Pitus the friendly fisherman").
+namesq(klavareko, "Ghost of the dead king Klavareko").
+namesq(ekofype, "Ghost of the city founder Ekofype"). 
+namesq(saudadesmirage, "mirage of a beautiful princess").
+namesq(titus, "Titus Seaskipper the friendly fisherman").
+namesq(pitus, "Pitus Seaskipper the friendly fisherman").
 namesq(claudius, "Claudius the old fisherman").
 namesq(otavius, "Otavius the old fisherman").
 namesq(julius, "Julius the old fisherman").
-namesq(caexius, "Caexius the great fisherman's brother"). % Caesirus' brother
+namesq(caexis, "Caexis the Brother"). % Caesirus' brother
 namesq(tukernook, "Tukernook the Red Dragon").
-namesq(saudades, "Saudades the princess").
-namesq(caesirus, "Caesirus the great fisherman").
+namesq(saudades, "Saudades the Princess").
+namesq(caesirus, "Caesirus the Great Ermit Fisherman").
 namesq(wghost, "Ghost of the deep woods").
 namesq(mghost, "Ghost of the deep mountains").
+namesq(whale, "Whomobyl the White Whale").
+namesq(bartender, "Thomorn Armorsmith the bartender").
+namesq(waitress, "Lady Quierris Seaskipper the waitress").
+namesq(drunk, "Tumblebelly the drunk").
 
 % names of things
 namesq(wall, "Great Wall of Eklotan").
 namesq(sword, "Kalista the dragon killer sword").
+namesq(boat, "WWW boat").
+namesq(coin, "Klavareko golden coin").
 
-% indoors
-% squares that have houses or things you can enter
-house(witch, hwitch).
-house(church, hchurch).
-house(cemitery, tomb).
-house(neighbor4, mosquito1).
-house(neighbor4, mosquito2).
-house(neighbor4, mosquito3).
-house(neighbor4, mosquito4).
-house(knights3, knight1).
-house(knights3, knight2).
-house(knights3, knight3).
-house(palace, hpalace).
-house(fishermans2, fisherfriend1).
-house(fishermans2, fisherfriend2).
-house(fishermans3, fisherold1).
-house(fishermans3, fisherold2).
-house(fishermans3, fisherold3).
-house(fishermans1, fisher1).
-house(castle, hcastle).
-house(cave, hcave).
-house(loach, hloach).
-
-% house synonymous for typing
-housesyn(hwitch, [madaleine, witchs, witch, living]).
-housesyn(hchurch, [eklasius, church, chapel]).
-housesyn(tomb, [tomb, dom, doom, domdoom]).
-housesyn(mosquito1, [first, mosquitos, bedroom]).
-housesyn(mosquito2, [second, bathroom]).
-housesyn(mosquito3, [third, saloon]).
-housesyn(mosquito4, [fourth, guestroom]).
-housesyn(knight1, [greminlots, greminlot, gremin, cellar]).
-housesyn(knight2, [robinlots, robinlot, robin, garage]).
-housesyn(knight3, [lancelots, lancelot, lance, library]).
-housesyn(hpalace, [great, palace, ekofype, throne]).
-housesyn(fisherfriend1, [first, fisherman, fishermans, one, green]).
-housesyn(fisherfriend2, [second, two, gym]).
-housesyn(fisherold1, [claudius, old, basement]).
-housesyn(fisherold2, [otavius, chamber]).
-housesyn(fisherold3, [julius, dungeon]).
-housesyn(fisher1, [ermit, caexius, caesirus, great, darkroom]).
-housesyn(hcastle, [red, castle, firearms, lobby]).
-housesyn(hcave, [cave, hollow, ermit, caesirus, great, conservatory]).
-housesyn(hloach, [hidden, hole, sand]).
-
-% people on houses or squares
-people(hwitch, madaleine).
-people(hchurch, eklasius).
-people(tomb, domdoom).
-people(plaza, lustre).
-people(gate, guard).
-people(bridge, collector).
-people(mosquito1, liljohn).
-people(mosquito2, lilly).
-people(mosquito3, lilbil).
-people(mosquito4, lilove).
-people(knight1, greminlot).
-people(knight2, robinlot).
-people(knight3, lancelot).
-people(hpalace, kalavareko).
-people(hpalace, ekofype). 
-people(fountain, saudadesmirage).
-people(fisherfriend1, titus).
-people(fisherfriend2, pitus).
-people(fisherold1, claudius).
-people(fisherold2, otavius).
-people(fisherold3, julius).
-people(fisher1, caexius). % Caesirus' brother
-people(hcastle, tukernook).
-people(hcastle, saudades).
-people(hcave, caesirus).
-people(dwoods, wghost).
-people(dmountain, mghost).
-
-% movable things in place
-put_things :-
-    retractall(thing(_, _)),
-    assert(thing(smoke, sword)). % place, thing
-
+/* ---------------------------------------------------------------------- */
 % get only the first
 getat(X, P) :-
     at(X, P),
@@ -618,82 +752,83 @@ getat(X, P) :-
 % map from [X,Y]=[0,0] to [X,Y]=[10,6]
 at([0, 0], witch).
 at([0, 1], smoke).
-at([0, 2], forest).
-at([0, 3], lroad).
+at([0, 2], forest). % generic
+at([0, 3], lroad). % generic
 at([0, 4], woods).
 at([0, 5], church).
 at([0, 6], cemitery).
-at([1, 0], forest).
-at([1, 1], forest).
-at([1, 2], forest).
+at([1, 0], forest). % generic
+at([1, 1], forest). % generic
+at([1, 2], forest). % generic
 at([1, 3], gate).
 at([1, 4], plaza).
-at([1, 5], nstreet).
+at([1, 5], sstreet).
 at([1, 6], fountain).
-at([2, 0], forest).
-at([2, 1], forest).
-at([2, 2], forest).
-at([2, 3], road).
-at([2, 4], estreet).
+at([2, 0], forest). % generic
+at([2, 1], forest). % generic
+at([2, 2], forest). % generic
+at([2, 3], road). % generic
+at([2, 4], wstreet).
 at([2, 5], neighbor4).
 at([2, 6], palace).
-at([3, 0], forest).
-at([3, 1], forest).
-at([3, 2], forest).
-at([3, 3], road).
-at([3, 4], estreet).
+at([3, 0], forest). % generic
+at([3, 1], forest). % generic
+at([3, 2], forest). % generic
+at([3, 3], road). % generic
+at([3, 4], tavern).
 at([3, 5], knights3).
 at([3, 6], dwoods).
-at([4, 0], margin).
-at([4, 1], margin).
-at([4, 2], margin).
-at([4, 3], road).
+at([4, 0], margin). % generic
+at([4, 1], margin). % generic
+at([4, 2], margin). % generic
+at([4, 3], road). % generic
 at([4, 4], fishermans2).
 at([4, 5], fishermans3).
 at([4, 6], fishermans1).
-at([5, 0], water).
-at([5, 1], water).
-at([5, 2], water).
-at([5, 3], road).
-at([5, 4], water).
-at([5, 5], water).
-at([5, 6], water).
-at([6, 0], dwater).
-at([6, 1], dwater).
-at([6, 2], dwater).
+at([5, 0], water). % generic
+at([5, 1], water). % generic
+at([5, 2], water). % generic
+at([5, 3], road). % generic
+at([5, 4], water). % generic
+at([5, 5], water). % generic
+at([5, 6], water). % generic
+at([6, 0], dwater). % generic
+at([6, 1], dwater). % generic
+at([6, 2], dwater). % generic
 at([6, 3], bridge).
-at([6, 4], dwater).
-at([6, 5], dwater).
-at([6, 6], dwater).
-at([7, 0], water).
-at([7, 1], water).
-at([7, 2], water).
-at([7, 3], rroad).
-at([7, 4], water).
-at([7, 5], water).
-at([7, 6], water).
-at([8, 0], margin).
-at([8, 1], margin).
-at([8, 2], margin).
-at([8, 3], rroad).
-at([8, 4], margin).
-at([8, 5], margin).
+at([6, 4], dwater). % generic
+at([6, 5], dwater). % generic
+at([6, 6], dwater). % generic
+at([7, 0], water). % generic
+at([7, 1], water). % generic
+at([7, 2], water). % generic
+at([7, 3], rroad). % generic
+at([7, 4], water). % generic
+at([7, 5], water). % generic
+at([7, 6], water). % generic
+at([8, 0], margin). % generic
+at([8, 1], margin). % generic
+at([8, 2], margin). % generic
+at([8, 3], rroad). % generic
+at([8, 4], margin). % generic
+at([8, 5], margin). % generic
 at([8, 6], loach).
 at([9, 0], dmountain).
-at([9, 1], dwater).
-at([9, 2], mountain).
-at([9, 3], rroad).
-at([9, 4], forest).
-at([9, 5], forest).
+at([9, 1], mountain). % generic
+at([9, 2], mountain). % generic
+at([9, 3], rroad). % generic
+at([9, 4], forest). % generic
+at([9, 5], forest). % generic
 at([9, 6], dforest).
 at([10, 0], cave).
-at([10, 1], mroad).
-at([10, 2], mroad).
+at([10, 1], mroad). % generic
+at([10, 2], mroad). % generic
 at([10, 3], intersection).
-at([10, 4], froad).
-at([10, 5], froad).
+at([10, 4], froad). % generic
+at([10, 5], froad). % generic
 at([10, 6], castle).
 
+% forest at north, west and south-west
 at([X, Y], forest) :-
     (X < 4, Y < 0);
     (X < 0, Y < 3);
@@ -702,28 +837,32 @@ at([X, Y], forest) :-
     (X > 8, Y > 6);
     (X > 10, Y > 3).
 
+% mountains at south-east
 at([X, Y], mountain) :-
     (X > 10, Y =< 3);
     (X > 8, Y < 0 ).
 
+% left road goes on to west infinitely
 at([X, 3], lroad) :-
     X < 0.
 
+% the river goes north/south infinitely
 at([4, Y], margin) :-
-    Y < 0 ; Y > 6.
-
-at([5, Y], water) :-
-    Y < 0 ; Y > 6.
-
-at([6, Y], dwater) :-
-    Y < 0 ; Y > 6.
-
-at([7, Y], water) :-
     Y < 0 ; Y > 6.
 
 at([8, Y], margin) :-
     Y < 0 ; Y > 6.
 
+at([5, Y], water) :-
+    Y < 0 ; Y > 6.
+
+at([7, Y], water) :-
+    Y < 0 ; Y > 6.
+
+at([6, Y], dwater) :-
+    Y < 0 ; Y > 6.
+
+/* ---------------------------------------------------------------------- */
 % this paths are blocked by walls
 wall([X0, Y0], [X1, Y1]) :-
     % city walls
@@ -753,64 +892,30 @@ blocked(P0, P1) :-
 accessible(P0, P1) :-
     not(blocked(P0, P1)), !.
 
-
-% vocabulary(saia).
-% vocabulary(va).
-% vocabulary(fale).
-% vocabulary(pegue).
-% vocabulary(solte).
-% vocabulary(coma).
-% vocabulary(lute).
-% vocabulary(olhe_em_volta).
-% vocabulary(olhe_para).
-% vocabulary(entre).
-% vocabulary(fuja).
-% vocabulary(descanse).
-% vocabulary(toque).
-% vocabulary(liste).
-% vocabulary(abra).
-% vocabulary(desista).
-% vocabulary(ajuda).
-% vocabulary(feche).
-
-% vocabulary(go). % synonym get(out)
-% vocabulary(talk).
-% vocabulary(take). % synonym get(something)
-% vocabulary(drop). % synonym release(something)
-% vocabulary(eat).
-% vocabulary(fight).
-% vocabulary(inspect). % synonyms look(something), search(something)
-% vocabulary(explore). % synonyms look(around), search(around)
-% vocabulary(enter).
-% vocabulary(run).
-% vocabulary(rest).
-% vocabulary(play).
-% vocabulary(list). % synonym inventory()
-% vocabulary(opens).
-% vocabulary(closes).
-% vocabulary(quit). % synonym give(up)
-% vocabulary(help).
-
+/* ---------------------------------------------------------------------- */
 % get user input and convert to "command([arguments])"
 get_command(C) :-
     read_command(RC),
-    synonymous(RC, C),
+    vocab_syn(RC, C),
+    % vocabulary(C), % erro tratado no do(_)
     retractall(last_command(_)),
     assert(last_command(C)).
 
-synonymous(get([out|T]), go([out|T])) :- !.
-synonymous(get([H|T]), take([H|T])) :- not(H == out), !.
-synonymous(release(L), drop(L)) :- !.
-synonymous(look([around|T]), explore(T)) :- !.
-synonymous(look([H|T]), inspect([H|T])) :- not(H == around), !.
-synonymous(search([around|T]), explore(T)) :- !.
-synonymous(search([H|T]), inspect([H|T])) :- not(H == around), !.
-synonymous(enter([inside|T]), enter(T)).
-synonymous(inventory(L), list(L)).
-synonymous(give([up|_]), quit([])).
-synonymous(last([]), C) :-
-    last_command(C), !.
-synonymous(C, C).
+vocab_syn(get([out|T]), go([out|T])) :- !.
+% synonymous(get([H|T]), take([H|T])) :- not(H == out), !.
+vocab_syn(get(L), take(L)) :- !.
+vocab_syn(release(L), drop(L)) :- !.
+vocab_syn(look([around|T]), explore(T)) :- !.
+% synonymous(look([H|T]), inspect([H|T])) :- not(H == around), !.
+vocab_syn(look(L), inspect(L)) :- !.
+vocab_syn(search([around|T]), explore(T)) :- !.
+% synonymous(search([H|T]), inspect([H|T])) :- not(H == around), !.
+vocab_syn(search(L), inspect(L)) :- !.
+vocab_syn(enter([inside|T]), enter(T)).
+vocab_syn(inventory(L), list(L)).
+vocab_syn(give([up|_]), quit([])).
+vocab_syn(last([]), C) :- last_command(C), !.
+vocab_syn(C, C).
 
 read_command(C) :-
     readlist(L),
@@ -892,7 +997,6 @@ readlist(L) :-
     split_string(SI, ". !?,;\":$%&*()_-=+`´^~{[}]></", ". !?,;\":$%&*()_-=+`´^~{[}]></", SSP),
     maplist(string_to_atom, SSP, L).
 
-
 % remove \' from string
 remapo(SC, SS) :-
     string_codes(SC, C), 
@@ -907,6 +1011,7 @@ doselect(C, D) :-
 
 doselect(C, C).
 
+/* ---------------------------------------------------------------------- */
 % respond simplifies writing a mixture of literals and variables
 respond([]) :-
     nl.
