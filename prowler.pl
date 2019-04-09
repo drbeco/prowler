@@ -34,7 +34,7 @@
  * @retval TRUE on success.
  * @retval FALSE on fail.
  */
-:- dynamic([have/1, coord/1, local/2, here/1, dead/0, done/0, pl_thing/2, last_command/1]).
+:- dynamic([have/1, coord/1, local/2, here/1, dead/0, done/0, pl_thing/2, last_command/1, thing_prop/2]).
 
 /* ---------------------------------------------------------------------- */
 /* Facts and Rules */
@@ -60,6 +60,7 @@ initialize :-
     retractall(here(_)),
     retractall(dead),
     retractall(done),
+    retractall(thing_prop(_, _)),
     retractall(pl_thing(_,_)),
     retractall(last_command(_)),
     % initializes a new game
@@ -69,10 +70,12 @@ initialize :-
     assert(local(player, Place)),
     % assert(here([])),
     put_things,
+    set_properties, % things properties
     put_people,
     assert(last_command(go([north]))).
 
 explain :-
+    respond(['Introductory text...']),
     respond(['Move with go north, go south, go east or go west']).
 
 % main loop of the game
@@ -428,12 +431,12 @@ mapsq(plaza). % city plaza square
 mapsq(gate). % city gates
 mapsq(bridge). % bridge over Ekofiume river
 mapsq(intersection). % road intersection between rroad, mroad and froad
-mapsq(neighbor4). % neighborhood of the Mosquitos
+mapsq(mosquitos4). % neighborhood of the Mosquitos
 mapsq(knights3). % neighborhood of the Knights
 mapsq(palace). % city palace
 mapsq(fountain). % city fountain
-mapsq(fishermans2). % neighborhood the the friendly fishermans
-mapsq(fishermans3). % neighborhood of the old creepy fishermans
+mapsq(fishermans2). % neighborhood the 2 friendly fishermans
+mapsq(fishermans3). % neighborhood of the 3 old creepy fishermans
 mapsq(fishermans1). % Caexis the Brother house square
 mapsq(castle). % the Red Castle
 mapsq(cave). % Caesirus' cave
@@ -445,6 +448,45 @@ mapsq(dforest). % at 9,6 a deep forest
 mapsq(dmountain). % a strange mountain place at 9,0
 mapsq(loach). % Caesirus' hidden place in the river margin
 mapsq(tavern). % Great Whale Tavern
+
+% generic square names (can't hold objects)
+map_syn(forest, [forest, enchanted]). % all forest squares
+map_syn(water, [shallow, water]). % all shallow waters near both the margins of the river
+map_syn(dwater, [deep, water]). % all middle of the river, plus a trap at 9,1
+map_syn(margin, [margin, river, ekofiume]). % all margin squares of the river
+map_syn(lroad, [road, ek101, regional]). % goes left/west
+map_syn(road, [road, ek042]). % middle road, before the bridge
+map_syn(rroad, [road, ek666]). % right road, after the bridge
+map_syn(mroad, [road, ek232]). % mountain road, goes south to the cave
+map_syn(froad, [road, ek300]). % forest road, goes north to the castle
+map_syn(mountain, [mountain]). % all mountains around
+
+% unique squares on the map
+map_syn(witch, [witch, yard]). % witch's yard
+map_syn(smoke, [smoked, forest]). % smoked forest
+map_syn(church, [church]). % city church
+map_syn(cemitery, [garden, cemitery]). % city cemitery
+map_syn(plaza, [plaza, square]). % city plaza square
+map_syn(gate, [gate]). % city gates
+map_syn(bridge, [bridge, fireater]). % bridge over Ekofiume river
+map_syn(intersection, [intersection, emf03]). % road intersection between rroad, mroad and froad
+map_syn(mosquitos4, [mosquitos, four]). % neighborhood of the Mosquitos
+map_syn(knights3, [knights, three]). % neighborhood of the Knights
+map_syn(palace, [palace, main]). % city palace
+map_syn(fountain, [fountain]). % city fountain
+map_syn(fishermans2, [friends]). % neighborhood the 2 friendly fishermans
+map_syn(fishermans3, [old, village]). % neighborhood of the 3 old creepy fishermans
+map_syn(fishermans1, [ermit, backyard]). % Caexis the Brother house square
+map_syn(castle, [castle, stairs, red, firearms]). % the Red Castle
+map_syn(cave, [ermit, cave]). % Caesirus' cave
+map_syn(sstreet, [saudades, street]). % Saudades street, goes north
+map_syn(wstreet, [whale, street]). % Whale street, goes east
+map_syn(woods, [woods]). % light woods near the city plaza and church
+map_syn(dwoods, [creepy, deep, woods]). % city deep woods near the river and the north wall
+map_syn(dforest, [deep, forest]). % at 9,6 a deep forest
+map_syn(dmountain, [deep, cursed, mountain, mountains]). % a strange mountain place at 9,0
+map_syn(loach, [caesirus, hidden, passage]). % Caesirus' hidden place in the river margin
+map_syn(tavern, [tavern, bar, corner]). % Great Whale Tavern
 
 % people on the world 
 people(madaleine). % the witch
@@ -460,7 +502,7 @@ people(lilove). % 4th mosquito
 people(greminlot). % 1st knight
 people(robinlot). % 2nd knight
 people(lancelot). % 3rd knight
-people(klavareko). % ghost of the king
+people(klavareko). % King
 people(ekofype). % ghost of the city founder
 people(saudadesmirage). % mirage of the princess
 people(titus). % friendly fisherman
@@ -480,27 +522,27 @@ people(waitress). % Lady Quierris Seaskipper
 people(drunk). % Tumblebelly the Bard
 
 % houses and places one can enter
-house(hwitch).
-house(hchurch).
-house(htomb).
-house(hmosquito1).
-house(hmosquito2).
-house(hmosquito3).
-house(hmosquito4).
-house(hknight1).
-house(hknight2).
-house(hknight3).
-house(hpalace).
-house(hfisherfriend1).
-house(hfisherfriend2).
-house(hfisherold1).
-house(hfisherold2).
-house(hfisherold3).
-house(hfisher1).
-house(hcastle).
-house(hcave).
-house(hloach).
-house(htavern).
+house(hwitch). % living room of the house of Madaleine the witch
+house(hchurch). % church chapel
+house(htomb). % inside the tomb of Dom Doom
+house(hmosquito1). % Liljohn bedroom
+house(hmosquito2). % Lilly bathroom
+house(hmosquito3). % libil inglenook
+house(hmosquito4). % lillove guestroom
+house(hknight1). % Greminlot cellar
+house(hknight2). % Robinlot garage
+house(hknight3). % Lancelot library
+house(hpalace). % throne room
+house(hfisherfriend1). % Titu's green room
+house(hfisherfriend2). % Pitus gym room
+house(hfisherold1). % Claudius basement
+house(hfisherold2). % Otavius chamber
+house(hfisherold3). % Julius dungeon
+house(hfisher1). % Caesirus darkroom
+house(hcastle). % Red Castle lobby
+house(hcave). % Caesirus cave conservatory
+house(hloach). % Caesirus hidden hole
+house(htavern). % salon of the tavern
 house(hwell). % water well in the fountain
 house(hpool). % water pool in the deep mountains 
 
@@ -546,10 +588,10 @@ vocabulary(help).
 sq_house(witch, hwitch).
 sq_house(church, hchurch).
 sq_house(cemitery, htomb).
-sq_house(neighbor4, hmosquito1).
-sq_house(neighbor4, hmosquito2).
-sq_house(neighbor4, hmosquito3).
-sq_house(neighbor4, hmosquito4).
+sq_house(mosquitos4, hmosquito1).
+sq_house(mosquitos4, hmosquito2).
+sq_house(mosquitos4, hmosquito3).
+sq_house(mosquitos4, hmosquito4).
 sq_house(knights3, hknight1).
 sq_house(knights3, hknight2).
 sq_house(knights3, hknight3).
@@ -592,30 +634,63 @@ house_syn(htavern, [great, whale, tavern, salon]).
 house_syn(hwell, [limpid, water, well]).
 house_syn(hpool, [crystalline, water, pool]).
 
+% people nicknames and variations
+people_syn(madaleine, [madaleine, witch]).
+people_syn(eklasius, [eklasius, saint]).
+people_syn(domdoom, [domdoom, dom, doom, cursed]).
+people_syn(lustre, [lustre, leonel, councilor]).
+people_syn(guard, [guard, justus]).
+people_syn(collector, [collector, jurus]).
+people_syn(liljohn, [liljohn, mosquito]).
+people_syn(lilly, [lilly, ladybug]).
+people_syn(lilbil, [lilbil, mosquito]).
+people_syn(lilove, [lilove, ladybug]).
+people_syn(greminlot, [greminlot, gremin, first, knight]).
+people_syn(robinlot, [robinlot, robin, second, knight]).
+people_syn(lancelot, [lancelot, lance, third, knight]).
+people_syn(klavareko, [klavareko, ekofype, ix, majesty]).
+people_syn(ekofype, [ekofype, city, founder, fair]).
+people_syn(saudadesmirage, [saudades, mirage, beautiful, princess]).
+people_syn(titus, [titus, seaskipper, friendly, fisherman]).
+people_syn(pitus, [pitus, seaskipper, friendly, fisherman]).
+people_syn(claudius, [claudius, old, fisherman]).
+people_syn(otavius, [otavius, old, fisherman]).
+people_syn(julius, [julius, old, fisherman]).
+people_syn(caexis, [caexis, brother]).
+people_syn(tukernook, [tukernook, red, dragon]).
+people_syn(saudades, [saudades, ekofype, beautiful, princess, majesty]).
+people_syn(caesirus, [caesirus, great, ermit, fisherman]).
+people_syn(wghost, [ghost, deep, woods]).
+people_syn(mghost, [ghost, deep, mountains]).
+people_syn(whale, [whale, whomobyl, white, www]).
+people_syn(bartender, [bartender, armorsmith, barbarian]).
+people_syn(waitress, [waitress, quierris, seaskipper, waitress, bard]).
+people_syn(drunk, [tumblebelly, drunk, wasted, hammered, stoned]).
+
 % people on starting places
 put_people :-
     % retractall(local(_, _)),
     assert(local(madaleine, hwitch)),
     assert(local(eklasius, hchurch)),
-    assert(local(domdoom, tomb)),
+    assert(local(domdoom, htomb)),
     assert(local(lustre, plaza)),
     assert(local(guard, gate)),
     assert(local(collector, bridge)),
     assert(local(liljohn, htavern)),
-    assert(local(lilly, mosquito2)),
-    assert(local(lilbil, mosquito3)),
-    assert(local(lilove, mosquito4)),
-    assert(local(greminlot, knight1)),
-    assert(local(robinlot, knight2)),
-    assert(local(lancelot, knight3)),
+    assert(local(lilly, hmosquito2)),
+    assert(local(lilbil, hmosquito3)),
+    assert(local(lilove, hmosquito4)),
+    assert(local(greminlot, hknight1)),
+    assert(local(robinlot, fountain)),
+    assert(local(lancelot, hknight3)),
     assert(local(klavareko, hpalace)),
     assert(local(ekofype, hpalace)),
-    assert(local(saudadesmirage, fountain)),
-    assert(local(titus, fisherfriend1)),
-    assert(local(pitus, fisherfriend2)),
+    assert(local(saudadesmirage, hwell)),
+    assert(local(titus, fishermans2)),
+    assert(local(pitus, hfisherfriend2)),
     assert(local(claudius, htavern)),
-    assert(local(otavius, fisherold2)),
-    assert(local(julius, fisherold3)),
+    assert(local(otavius, hfisherold2)),
+    assert(local(julius, hfisherold3)),
     assert(local(caexis, htavern)),
     assert(local(tukernook, hcastle)),
     assert(local(saudades, hcastle)),
@@ -627,21 +702,56 @@ put_people :-
     assert(local(waitress, htavern)),
     assert(local(drunk, htavern)).
 
+% list of things
+thing(wall).
+thing(sword).
+thing(boat).
+thing(coin).
+thing(book).
+thing(apple).
+
+% things properties
+set_properties :-
+    % retractall(thing_prop(_, _)),
+    assert(thing_prop(wall, hot)), % firewall, quente
+    assert(thing_prop(sword, broken)), % quebrada
+    assert(thing_prop(sword, carriable)), % carregavel
+    assert(thing_prop(boat, broken)),
+    assert(thing_prop(boat, wet)), % molhada
+    assert(thing_prop(boat, carriable)),
+    assert(thing_prop(coin, countable)), % contavel, acumula (add/sub)
+    assert(thing_prop(coin, hidden)), % escondida, tem que olhar
+    assert(thing_prop(coin, carriable)),
+    assert(thing_prop(book, hidden)),
+    assert(thing_prop(book, carriable)),
+    assert(thing_prop(apple, expired)), % vencida, expirada
+    assert(thing_prop(apple, edible)), % comestivel
+    assert(thing_prop(apple, carriable)).
+
+% synonyms to call things
+thing_syn(wall, [wall, great, eklotan]).
+thing_syn(sword, [sword, kalista, killer]).
+thing_syn(boat, [boat, www]).
+thing_syn(coin, [coin, golden, piece, penny, nickel, dime, quarter, half, klav]).
+thing_syn(book, [book, dragons, dummy]).
+
 % movable things in place
 put_things :-
     % retractall(pl_thing(_, _)),
     assert(pl_thing(smoke, sword)), % place, thing
     assert(pl_thing(fishermans1, boat)),
-    assert(pl_thing(mosquito1, coin)),
-    assert(pl_thing(fisherold1, coin)),
+    assert(pl_thing(hmosquito1, coin)),
+    assert(pl_thing(hfisherold1, coin)),
     assert(pl_thing(hloach, coin)),
-    assert(pl_thing(tomb, coin)),
+    assert(pl_thing(htomb, coin)),
     assert(pl_thing(woods, coin)),
-    assert(pl_thing(hcastle, coin)).
+    assert(pl_thing(hcastle, coin)),
+    assert(pl_thing(hknight3, book)).
 
 /* ---------------------------------------------------------------------- */
 % atoms and the respective string descriptions
 % names of the important squares, plazas, objects
+% generic places (occur more than once in the map
 namesq(forest, "enchanted forest").
 namesq(water, "shallow waters of the Ekofiume river").
 namesq(dwater, "deep waters of the Ekofiume river").
@@ -649,25 +759,27 @@ namesq(margin, "margin of Ekofiume river").
 namesq(lroad, "EK101 regional road").
 namesq(road, "EK042 city road").
 namesq(rroad, "EK666 cursed road").
-namesq(mroad, "King's Mountain Road").
-namesq(froad, "Queen's Forest Road").
+namesq(mroad, "EK232 King's Mountain Road").
+namesq(froad, "EK300 Queen's Forest Road").
 namesq(mountain, "Great Mountains of King Klavareko").
-namesq(witch, "famine witch's yard").
+
+% specific (uniq) places
+namesq(witch, "yard of the famine witch").
 namesq(smoke, "smoked forest").
-namesq(church, "St. Eklasius Church entrance").
-namesq(cemitery, "Dom Doom Cemitery").
-namesq(plaza, "Councilor Lustre Plaza").
-namesq(gate, "Entrance gates of Ekofype City").
+namesq(church, "entrance of the St. Eklasius Church").
+namesq(cemitery, "garden of Dom Doom Cemitery").
+namesq(plaza, "Councilor Lustre Plaza Square").
+namesq(gate, "entrance gates of Ekofype City").
 namesq(bridge, "Ekofy Fireater Bridge").
 namesq(intersection, "EMF03 Three-way Intersection Eko-Mountain-Forest").
-namesq(neighbor4, "Four Mosquitoes neighborhood").
+namesq(mosquitos4, "Four Mosquitoes neighborhood").
 namesq(knights3, "Three Knights neighborhood").
 namesq(palace, "Ekofype Great Palace main door").
 namesq(fountain, "Saudades Fountain").
 namesq(fishermans2, "Fisherman's Friends neighborhood").
 namesq(fishermans3, "Fisherman's Old Village").
-namesq(fishermans1, "Ermit Fisherman's yard").
-namesq(castle, "Red Castle of Firearms").
+namesq(fishermans1, "Ermit Fisherman's backyard").
+namesq(castle, "stairs outside the Red Castle of Firearms").
 namesq(cave, "Ermit Caesirus cave entrance").
 namesq(sstreet, "Saudades Fountain street").
 namesq(wstreet, "Whale street").
@@ -676,7 +788,7 @@ namesq(dwoods, "creepy deep woods").
 namesq(dforest, "deep forest").
 namesq(dmountain, "Deep Cursed  Mountains").
 namesq(loach, "Caesirus hidden place at the river margin").
-namesq(tavern, "Great Whale Tavern").
+namesq(tavern, "corner of the Whale street near the Great Whale Tavern").
 
 % names of houses
 namesq(hwitch, "Madaleine witch's living room").
@@ -717,8 +829,8 @@ namesq(lilove, "Lillove the Fourth Ladybug").
 namesq(greminlot, "Sir Greminlot the First Knight").
 namesq(robinlot, "Sir Robinlot the Second Knight").
 namesq(lancelot, "Sir Lancelot the Third Knight").
-namesq(klavareko, "Ghost of the dead king Klavareko").
-namesq(ekofype, "Ghost of the city founder Ekofype"). 
+namesq(klavareko, "King Klavareko Ekofype IX").
+namesq(ekofype, "Ghost of the city founder Ekofype the Fair"). 
 namesq(saudadesmirage, "mirage of a beautiful princess").
 namesq(titus, "Titus Seaskipper the friendly fisherman").
 namesq(pitus, "Pitus Seaskipper the friendly fisherman").
@@ -727,7 +839,7 @@ namesq(otavius, "Otavius the old fisherman").
 namesq(julius, "Julius the old fisherman").
 namesq(caexis, "Caexis the Brother"). % Caesirus' brother
 namesq(tukernook, "Tukernook the Red Dragon").
-namesq(saudades, "Saudades the Princess").
+namesq(saudades, "Saudades Ekofype the Princess").
 namesq(caesirus, "Caesirus the Great Ermit Fisherman").
 namesq(wghost, "Ghost of the deep woods").
 namesq(mghost, "Ghost of the deep mountains").
@@ -740,7 +852,9 @@ namesq(drunk, "Tumblebelly the drunk").
 namesq(wall, "Great Wall of Eklotan").
 namesq(sword, "Kalista the dragon killer sword").
 namesq(boat, "WWW boat").
-namesq(coin, "Klavareko golden coin").
+namesq(coin, "Klav golden coin").
+namesq(book, "book 'Dragons for dummy'").
+namesq(apple, "poisoned apple").
 
 /* ---------------------------------------------------------------------- */
 % get only the first
@@ -769,7 +883,7 @@ at([2, 1], forest). % generic
 at([2, 2], forest). % generic
 at([2, 3], road). % generic
 at([2, 4], wstreet).
-at([2, 5], neighbor4).
+at([2, 5], mosquitos4).
 at([2, 6], palace).
 at([3, 0], forest). % generic
 at([3, 1], forest). % generic
