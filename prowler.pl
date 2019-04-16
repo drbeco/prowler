@@ -34,7 +34,7 @@
  * @retval TRUE on success.
  * @retval FALSE on fail.
  */
-:- dynamic([have/1, coord/1, local/2, here/1, dead/0, done/0, pl_thing/2, last_command/1, thing_prop/2]).
+:- dynamic([have/1, coord/1, local/2, here/1, victory/0, dead/0, resign/0, pl_thing/2, last_command/1, thing_prop/2]).
 
 /* ---------------------------------------------------------------------- */
 /* Facts and Rules */
@@ -48,7 +48,7 @@
 start :-
     % respond(['Initializing...']),
     initialize,
-    explain,
+    explain, !,
     gameloop,
     !.
 
@@ -81,15 +81,23 @@ explain :-
 % main loop of the game
 gameloop :-
     repeat,
-    whereami,
+    my_turn, %player's turn
+    enemy_turn, %turn of the other automatic agents
+    gameover. %check if the game is over. if not gameover, repeat
+
+my_turn :-
+    whereiam,
     whatishere,
-    exec_command,
-    check_dead,
-    gameover.
+    exec_command.
+
+enemy_turn. %monsters move or attack
 
 % return true if the game is over
 gameover :-
-    dead ; done.
+    check_dead,
+    check_victory,
+    check_resign,
+    (dead ; victory ; resign).
 
 check_dead :-
     coord(X),
@@ -100,7 +108,11 @@ check_dead :-
 
 check_dead.
 
-whereami :-
+check_victory.
+
+check_resign.
+
+whereiam :-
     % coord(Pos),
     % respond(['Your position is ', Pos]),
     local(player, Place),
@@ -399,7 +411,7 @@ closes([H|_]) :-
 /* ---------------------------------------------------------------------- */
 quit(_) :-
     respond(['Good bye! Thanks for playing...']),
-    assert(done),
+    assert(resign),
     !.
 
 /* ---------------------------------------------------------------------- */
@@ -1093,15 +1105,15 @@ repl2(_, _, _, [], []).
 repl2(_, _, _, [H|[]], [H|[]]).
 
 repl2(W1, W2, New, [W1, W2 | T], [New | T2]) :-
-    replace2(W1, W2, New, T, T2).
+    repl2(W1, W2, New, T, T2).
 
 repl2(W1, W2, New, [H | T], [H | T2]) :-
     dif(H, W1),
-    replace2(W1, W2, New, T, T2).
+    repl2(W1, W2, New, T, T2).
 
 repl2(W1, W2, New, [W1, H2 | T], [W1, H2 | T2]) :-
     dif(H2, W2),
-    replace2(W1, W2, New, T, T2).
+    repl2(W1, W2, New, T, T2).
 
 % read user input and return a list of atoms
 readlist(L) :-
@@ -1113,10 +1125,11 @@ readlist(L) :-
 
 % remove \' from string
 remapo(SC, SS) :-
-    string_codes(SC, C), 
+    string_codes(SC, C),
     doselect(C, D),
-    atom_codes(A, D),
-    atom_string(A, SS).
+    string_codes(SS, D).
+    %atom_codes(A, D),
+    %atom_string(A, SS).
 
 doselect(C, D) :-
     select(39, C, F),
